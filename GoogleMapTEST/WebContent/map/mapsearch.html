@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>위치기반 지역정보 검색</title>
+	<meta http-equiv="content-type" content="text/html;charset=UTF-8">
+</head>
+
+<body class="docs framebox_body">﻿
+	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false&libraries=places
+	&key=AIzaSyCSqqSzeriByNGPYZ3gE3VPDFGWjDy54VY"></script>
+	<script type="text/javascript">
+		var map, places, iw;
+		var markers = [];
+		var autocomplete;
+
+		function initialize() { //맵 첫화면
+			var myLatlng = new google.maps.LatLng(37.566535, 126.97796919999996);//맵 위치 Default 이값을 받아와서 바꿔줘야하는뎅
+			var myOptions = {
+				zoom: 16,
+				center: myLatlng,
+				mapTypeId: google.maps.MapTypeId.ROADMAP//맵타입 로드 맵
+			};
+			map = new google.maps.Map(document.getElementById('map_canvas'), myOptions);
+			places = new google.maps.places.PlacesService(map);//장소 검색 기능 가져오기
+			google.maps.event.addListener(map, 'tilesloaded', tilesLoaded);
+			autocomplete = new google.maps.places.Autocomplete(document.getElementById('autocomplete'));//자동완성기능 가져오기
+			google.maps.event.addListener(autocomplete, 'place_changed', function () {
+				showSelectedPlace();
+			});
+		}
+
+		function tilesLoaded() {
+			google.maps.event.clearListeners(map, 'tilesloaded');
+			google.maps.event.addListener(map, 'zoom_changed', search);
+			google.maps.event.addListener(map, 'dragend', search);
+			search();
+		}
+
+		function showSelectedPlace() {//마커 위치 기능
+			clearResults();
+			clearMarkers();
+			var place = autocomplete.getPlace();
+			alert(place.geometry.location);
+			map.panTo(place.geometry.location);
+			markers[0] = new google.maps.Marker({
+				position: place.geometry.location,
+				map: map
+			});
+			iw = new google.maps.InfoWindow({
+				content: getIWContent(place)
+			});
+			iw.open(map, markers[0]);
+		}
+
+		function search() {//검색 기능
+			var type;
+			for (var i = 0; i < document.controls.type.length; i++) {
+				if (document.controls.type[i].checked) {
+					type = document.controls.type[i].value;
+				}
+			}
+			autocomplete.setBounds(map.getBounds());//검색 자동완성
+			var search = {
+				bounds: map.getBounds()
+			};
+			if (type != 'establishment') {
+				search.types = [type];
+			}
+			places.search(search, function (results, status) {
+				if (status == google.maps.places.PlacesServiceStatus.OK) {
+					clearResults();
+					clearMarkers();
+					for (var i = 0; i < results.length; i++) {
+						markers[i] = new google.maps.Marker({
+							position: results[i].geometry.location,
+							animation: google.maps.Animation.DROP //마크 떨어지는 애니메이션 기능
+						});
+						google.maps.event.addListener(markers[i], 'click', getDetails(results[i], i));//클릭시 상세정보출력
+						setTimeout(dropMarker(i), i * 100);//마크 떨어지는 시간??
+						addResult(results[i], i);
+					}
+				}
+			});
+		}
+
+		function clearMarkers() {//마커 지우기
+			for (var i = 0; i < markers.length; i++) {
+				if (markers[i]) {
+					markers[i].setMap(null);
+					markers[i] == null;
+				}
+			}
+		}
+
+		function dropMarker(i) {//마커 떨어트리기
+			return function () {
+				markers[i].setMap(map);
+			}
+		}
+
+		function addResult(result, i) {
+			var results = document.getElementById('results');
+			var tr = document.createElement('tr');
+			tr.style.backgroundColor = (i % 2 == 0 ? '#F0F0F0' : '#FFFFFF');
+			tr.onclick = function () {
+				google.maps.event.trigger(markers[i], 'click');
+			};
+			var iconTd = document.createElement('td');
+			var nameTd = document.createElement('td');
+			var icon = document.createElement('img');
+			icon.src = result.icon.replace('http:', '');
+			icon.setAttribute('class', 'placeIcon');
+			var name = document.createTextNode(result.name);
+			iconTd.appendChild(icon);
+			nameTd.appendChild(name);
+			tr.appendChild(iconTd);
+			tr.appendChild(nameTd);
+			results.appendChild(tr);
+		}
+
+		function clearResults() {
+			var results = document.getElementById('results');
+			while (results.childNodes[0]) {
+				results.removeChild(results.childNodes[0]);
+			}
+		}
+
+		function getDetails(result, i) {
+			return function () {
+				places.getDetails({
+					reference: result.reference
+				}, showInfoWindow(i));
+			}
+		}
+
+		function showInfoWindow(i) {
+			return function (place, status) {
+				if (iw) {
+					iw.close();
+					iw = null;
+				}
+				if (status == google.maps.places.PlacesServiceStatus.OK) {
+					iw = new google.maps.InfoWindow({
+						content: getIWContent(place)
+					});
+					iw.open(map, markers[i]);
+				}
+			}
+		}
+
+		function getIWContent(place) {
+			var content = '<table style="border:0"><tr><td style="border:0;">';
+			content += '<img class="placeIcon" src="' + place.icon + '"></td>';
+			content += '<td style="border:0;"><b><a href="' + place.url + '">' + place.name + '</a></b>';
+			content += '</td></tr></table>';
+			return content;
+		}
+		google.maps.event.addDomListener(window, 'load', initialize);
+	</script>
+	<style type="text/css">
+		html, body {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			font-family: arial;
+			font-size: 13px;
+			overflow: hidden;
+		}
+		#map_canvas {
+			float: left;
+			width: 80%;
+			height: 80%;
+		}
+		#listing {
+			float: left;
+			margin-left: 1px;
+			width: 205px;
+			height: 326px;
+			overflow: auto;
+			cursor: pointer;
+		}
+		#controls {
+			padding: 5px;
+		}
+		.placeIcon {
+			width: 16px;
+			height: 16px;
+			margin: 2px;
+		}
+		#results {
+			border-collapse: collapse;
+			width: 184px;
+		}
+		#locationField {
+			margin-left: 1px;
+		}
+		#autocomplete {
+			width: 516px;
+			border: 1px solid #ccc;
+		}
+	</style>
+	<div id="locationField">
+		<input id="autocomplete" type="text">
+	</div>
+	<div id="map_canvas"></div>
+	<div id="controls">
+		<form name="controls">
+			<input type="radio" name="type" value="establishment" onclick="search()" checked="checked" />기관,시설
+			<br/>
+			<input type="radio" name="type" value="restaurant" onclick="search()" />레스토랑
+			<br/>
+			<input type="radio" name="type" value="cafe" onclick="search()" />cafe
+			<br/>
+			<input type="radio" name="type" value="subway_station" onclick="search()" />지하철
+			<br/>
+			<input type="radio" name="type" value="lodging" onclick="search()" />숙박업소
+		</form>
+	</div>
+	<div id="listing">
+		<table id="results"></table>
+	</div>
+</body>
+
+</html>
